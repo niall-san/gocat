@@ -16,6 +16,7 @@ const (
 	// Set this to true if you want the gocat callbacks used in the tests to print out
 	DebugTest         bool   = true
 	DefaultSharedPath string = "/usr/local/share/hashcat"
+	DeviceType        string = "1"
 )
 
 type testStruct struct {
@@ -108,7 +109,7 @@ func TestGoCatCrackingMD5(t *testing.T) {
 	require.NotNil(t, hc)
 	require.NoError(t, err)
 
-	err = hc.RunJob("-O", "-a", "0", "-m", "0", "--potfile-disable", "5d41402abc4b2a76b9719d911017c592", "./testdata/test_dictionary.txt")
+	err = hc.RunJob("-O", "-a", "0", "-m", "0", "-D", DeviceType, "--session", "test0", "--potfile-disable", "5d41402abc4b2a76b9719d911017c592", "./testdata/test_dictionary.txt")
 	require.NoError(t, err)
 	require.Len(t, crackedHashes, 1)
 	require.Equal(t, "hello", *crackedHashes["5d41402abc4b2a76b9719d911017c592"])
@@ -125,12 +126,12 @@ func TestGoCatReusingContext(t *testing.T) {
 	require.NotNil(t, hc)
 	require.NoError(t, err)
 
-	err = hc.RunJob("-O", "-a", "0", "-m", "0", "--potfile-disable", "5d41402abc4b2a76b9719d911017c592", "./testdata/test_dictionary.txt")
+	err = hc.RunJob("-O", "-a", "0", "-m", "0", "-D", DeviceType, "--session", "test4", "--potfile-disable", "5d41402abc4b2a76b9719d911017c592", "./testdata/test_dictionary.txt")
 	require.NoError(t, err)
 	require.Len(t, crackedHashes, 1)
 	require.Equal(t, "hello", *crackedHashes["5d41402abc4b2a76b9719d911017c592"])
 
-	err = hc.RunJob("-O", "-a", "0", "-m", "0", "--potfile-disable", "9f9d51bc70ef21ca5c14f307980a29d8", "./testdata/test_dictionary.txt")
+	err = hc.RunJob("-O", "-a", "0", "-m", "0", "-D", DeviceType, "--session", "test5", "--potfile-disable", "9f9d51bc70ef21ca5c14f307980a29d8", "./testdata/test_dictionary.txt")
 	require.NoError(t, err)
 	require.Len(t, crackedHashes, 2) // the previous run will still exist in this map
 	require.Equal(t, "bob", *crackedHashes["9f9d51bc70ef21ca5c14f307980a29d8"])
@@ -148,6 +149,8 @@ func TestGoCatRunJobWithOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	err = hc.RunJobWithOptions(hcargp.HashcatSessionOptions{
+		OpenCLDeviceTypes:            hcargp.GetStringPtr(DeviceType),
+		SessionName:                  hcargp.GetStringPtr("test3"),
 		OptimizedKernelEnabled:       hcargp.GetBoolPtr(true),
 		AttackMode:                   hcargp.GetIntPtr(0),
 		HashType:                     hcargp.GetIntPtr(0),
@@ -173,6 +176,8 @@ func TestGocatRussianHashes(t *testing.T) {
 	require.NoError(t, err)
 
 	err = hc.RunJobWithOptions(hcargp.HashcatSessionOptions{
+		OpenCLDeviceTypes:            hcargp.GetStringPtr(DeviceType),
+		SessionName:                  hcargp.GetStringPtr("test1"),
 		OptimizedKernelEnabled:       hcargp.GetBoolPtr(true),
 		AttackMode:                   hcargp.GetIntPtr(0),
 		HashType:                     hcargp.GetIntPtr(0),
@@ -235,6 +240,8 @@ func TestExampleHashcat_RunJobWithOptions(t *testing.T) {
 	}
 
 	err = hc.RunJobWithOptions(hcargp.HashcatSessionOptions{
+		OpenCLDeviceTypes:            hcargp.GetStringPtr(DeviceType),
+		SessionName:                  hcargp.GetStringPtr("test2"),
 		AttackMode:                   hcargp.GetIntPtr(0),
 		HashType:                     hcargp.GetIntPtr(0),
 		PotfileDisable:               hcargp.GetBoolPtr(true),
@@ -246,4 +253,19 @@ func TestExampleHashcat_RunJobWithOptions(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func TestHashIdentify(t *testing.T) {
+
+	opts := Options{
+		SharedPath: DefaultSharedPath,
+	}
+
+	types, err := IdentifyHash("5d41402abc4b2a76b9719d911017c592", opts)
+	require.Len(t, types, 11)
+	require.NoError(t, err)
+
+	invalidHash, err := IdentifyHash("5d4'[##'[]]'1017c592", opts)
+	require.Error(t, err)
+	require.Nil(t, invalidHash)
 }

@@ -116,6 +116,7 @@ type HashcatSessionOptions struct {
 	IncrementMask          *bool   `hashcat:"--increment,omitempty"`
 	IncrementMaskMin       *int    `hashcat:"--increment-min,omitempty"`
 	IncrementMaskMax       *int    `hashcat:"--increment-max,omitempty"`
+	Identify               *bool   `hashcat:"--identify,omitempty"`
 
 	// InputFile can be a single hash or multiple hashes via a hashfile or hccapx
 	InputFile                    string  `hashcat:","`

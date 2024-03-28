@@ -177,15 +177,78 @@ func (hc *Hashcat) RunJob(args ...string) (err error) {
 	return
 }
 
-// RunJobWithOptions is a convenience function to take a HashcatSessionOptions struct and craft the necessary argvs to use
-// for the hashcat session.
-// This is NOT goroutine safe. If you are needing to run multiple jobs, create a context for each one.
 func (hc *Hashcat) RunJobWithOptions(opts hcargp.HashcatSessionOptions) error {
 	args, err := opts.MarshalArgs()
 	if err != nil {
 		return err
 	}
 	return hc.RunJob(args...)
+}
+
+// IdentifyHash will identify the hash type of a given hash. Returns a list of types if successful.
+func IdentifyHash(hash string, options Options) (types []string, err error) {
+	opts := []string{"--identify", "--machine-readable", hash}
+	// Define a variable to hold the result
+	var result = []string{}
+
+	// Define the callback function to read in the identified types
+	cb := func(hc unsafe.Pointer, payload interface{}) {
+		if logPayload, ok := payload.(LogPayload); ok {
+			if logPayload.Level == InfoMessage {
+				result = append(result, logPayload.Message)
+			}
+		}
+	}
+
+	hc := &Hashcat{
+		opts: options,
+		cb:   cb,
+	}
+
+	hc.wrapper = C.gocat_ctx_t{
+		ctx:       C.hashcat_ctx_t{},
+		gowrapper: unsafe.Pointer(hc),
+	}
+
+	if retval := C.hashcat_init(&hc.wrapper.ctx, (*[0]byte)(unsafe.Pointer(C.event))); retval != 0 {
+		return nil, getErrorFromCtx(hc.wrapper.ctx)
+	}
+
+	hc.l.Lock()
+	defer hc.l.Unlock()
+
+	// initialize the default options in hashcat_ctx->user_options
+	if retval := C.user_options_init(&hc.wrapper.ctx); retval != 0 {
+		return nil, nil
+	}
+
+	argc, argv := convertArgsToC(append([]string{hc.opts.ExecutablePath}, opts...)...)
+	defer C.freeargv(argc, argv)
+
+	if retval := C.user_options_getopt(&hc.wrapper.ctx, argc, argv); retval != 0 {
+		return nil, getErrorFromCtx(hc.wrapper.ctx)
+	}
+
+	if retval := C.user_options_sanity(&hc.wrapper.ctx); retval != 0 {
+		return nil, getErrorFromCtx(hc.wrapper.ctx)
+	}
+
+	if retval := C.hashcat_session_init(&hc.wrapper.ctx, hc.executablePath, hc.sharedPath, argc, argv, C.int(CompileTime)); retval != 0 {
+		return nil, getErrorFromCtx(hc.wrapper.ctx)
+	}
+	defer C.hashcat_session_destroy(&hc.wrapper.ctx)
+
+	rc := C.hashcat_session_execute(&hc.wrapper.ctx)
+
+	//Should only return 0 on success
+	switch int(rc) {
+	case sessionCracked:
+		err = nil
+	default:
+		return nil, getErrorFromCtx(hc.wrapper.ctx)
+	}
+
+	return result, nil
 }
 
 // StopAtCheckpoint instructs the running hashcat session to stop at the next available checkpoint
@@ -273,7 +336,7 @@ func callback(id uint32, hcCtx *C.hashcat_ctx_t, wrapper unsafe.Pointer, buf uns
 	case C.EVENT_CRACKER_HASH_CRACKED, C.EVENT_POTFILE_HASH_SHOW:
 		// Grab the separator for this session out of user options
 		userOpts := hcCtx.user_options
-		sepr := C.GoString(&userOpts.separator)
+		sepr := C.GoString(userOpts.separator)
 		// XXX(cschmitt): What changed here that this is no longer set?
 		if sepr == "" {
 			sepr = ":"
@@ -288,6 +351,7 @@ func callback(id uint32, hcCtx *C.hashcat_ctx_t, wrapper unsafe.Pointer, buf uns
 			Status:  ctx.GetStatus(),
 			EndedAt: time.Now().UTC(),
 		}
+
 	}
 
 	// Events we're ignoring:
