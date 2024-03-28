@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 package main
@@ -17,9 +18,10 @@ import (
 )
 
 var (
-	rxpHashName    = regexp.MustCompile(`static const char \*HASH_NAME\s+=\s+\"(.*?)\";`)
-	rxpKernelType  = regexp.MustCompile(`static const u64\s+KERN_TYPE\s+=\s+(.*?);`)
-	rxpExampleHash = regexp.MustCompile(`static const char\s+\*ST_HASH\s+=\s+"(.*?)\";`)
+	rxpHashName     = regexp.MustCompile(`static const char \*HASH_NAME\s+=\s+\"(.*?)\";`)
+	rxpKernelType   = regexp.MustCompile(`static const u64\s+KERN_TYPE\s+=\s+(.*?);`)
+	rxpExampleHash  = regexp.MustCompile(`static const char\s+\*ST_HASH\s+=\s+"(.*?)\";`)
+	rxpHashCategory = regexp.MustCompile(`static const u32\s+HASH_CATEGORY\s+=\s+(HASH_CATEGORY_[A-Z_]+);`)
 )
 
 func locateHashName(buff []byte) string {
@@ -29,6 +31,21 @@ func locateHashName(buff []byte) string {
 	}
 
 	return string(matches[1])
+}
+
+func locateHashCategory(buff []byte) string {
+	matches := rxpHashCategory.FindSubmatch(buff)
+	if len(matches) != 2 {
+		return ""
+	}
+
+	categoryString, found := hashCategoryLookup[string(matches[1])]
+	if !found {
+		log.Printf("Invalid category")
+		return ""
+	}
+
+	return categoryString
 }
 
 func locateKernelType(buff []byte) (int, error) {
@@ -50,9 +67,38 @@ func locateExample(buff []byte) string {
 }
 
 type customHash struct {
-	Name    string
-	Type    int
-	Example string
+	Name     string
+	Type     int
+	Example  string
+	Category string
+}
+
+var hashCategoryLookup = map[string]string{
+	"HASH_CATEGORY_UNDEFINED":              "Undefined",
+	"HASH_CATEGORY_RAW_HASH":               "Raw Hash",
+	"HASH_CATEGORY_RAW_HASH_SALTED":        "Raw Hash, Salted and/or Iterated",
+	"HASH_CATEGORY_RAW_HASH_AUTHENTICATED": "Raw Hash, Authenticated",
+	"HASH_CATEGORY_RAW_CIPHER_KPA":         "Raw Cipher, Known-Plaintext attack",
+	"HASH_CATEGORY_GENERIC_KDF":            "Generic KDF",
+	"HASH_CATEGORY_NETWORK_PROTOCOL":       "Network Protocols",
+	"HASH_CATEGORY_FORUM_SOFTWARE":         "Forums, CMS, E-Commerce",
+	"HASH_CATEGORY_DATABASE_SERVER":        "Database Server",
+	"HASH_CATEGORY_NETWORK_SERVER":         "FTP, HTTP, SMTP, LDAP Server",
+	"HASH_CATEGORY_RAW_CHECKSUM":           "Raw Checksum",
+	"HASH_CATEGORY_OS":                     "Operating System",
+	"HASH_CATEGORY_EAS":                    "Enterprise Application Software (EAS)",
+	"HASH_CATEGORY_ARCHIVE":                "Archives",
+	"HASH_CATEGORY_FDE":                    "Full-Disk Encryption (FDE)",
+	"HASH_CATEGORY_DOCUMENTS":              "Documents",
+	"HASH_CATEGORY_PASSWORD_MANAGER":       "Password Managers",
+	"HASH_CATEGORY_OTP":                    "One-Time Passwords",
+	"HASH_CATEGORY_PLAIN":                  "Plaintext",
+	"HASH_CATEGORY_FRAMEWORK":              "Framework",
+	"HASH_CATEGORY_PRIVATE_KEY":            "Private Key",
+	"HASH_CATEGORY_IMS":                    "Instant Messaging Service",
+	"HASH_CATEGORY_CRYPTOCURRENCY_WALLET":  "Cryptocurrency Wallet",
+	"HASH_CATEGORY_FBE":                    "File-Based Encryption (FBE)",
+	"HASH_CATEGORY_APPLICATION_DATABASE":   "Application Database",
 }
 
 var knownDynamic = map[int][]customHash{
@@ -111,6 +157,7 @@ func main() {
 	b.WriteString("type Hash struct {\n")
 	b.WriteString("\tName string\n")
 	b.WriteString("\tExample string\n")
+	b.WriteString("\tCategory string\n")
 	b.WriteString("\tType int\n")
 	b.WriteString("}\n")
 	b.WriteString("var hashes = []Hash{\n")
@@ -135,6 +182,11 @@ func main() {
 			log.Fatalf("Could not locate hash name in %s", info.Name())
 		}
 
+		hashCategory := locateHashCategory(bytez)
+		if hashCategory == "" {
+			log.Fatalf("Could not locate hash category in %s", info.Name())
+		}
+
 		kernelType, err := locateKernelType(bytez)
 		if err != nil {
 			log.Fatalf("Could not locate kernel type in %s", info.Name())
@@ -157,6 +209,7 @@ func main() {
 				b.WriteString("\t{\n")
 				b.WriteString(fmt.Sprintf("\t Name: \"%s\",\n", hashType.Name))
 				b.WriteString(fmt.Sprintf("\t Type: %d,\n", hashType.Type))
+				b.WriteString(fmt.Sprintf("\t Category: \"%s\",\n", hashType.Category))
 
 				if hashType.Example != "" {
 					b.WriteString(fmt.Sprintf("\t Example: \"%s\",\n", hashType.Example))
@@ -173,6 +226,7 @@ func main() {
 		b.WriteString("\t{\n")
 		b.WriteString(fmt.Sprintf("\t Name: \"%s\",\n", hashName))
 		b.WriteString(fmt.Sprintf("\t Type: %d,\n", kernelType))
+		b.WriteString(fmt.Sprintf("\t Category: \"%s\",\n", hashCategory))
 		if example != "" {
 			b.WriteString(fmt.Sprintf("\t Example: \"%s\",\n", example))
 		}
