@@ -1,4 +1,4 @@
-module github.com/mandiant/gocat/v6
+module github.com/niall-san/gocat/v6
 
 go 1.20
 

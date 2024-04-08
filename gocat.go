@@ -17,7 +17,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/mandiant/gocat/v6/hcargp"
+	"github.com/niall-san/gocat/v6/hcargp"
 )
 
 var (
