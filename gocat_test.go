@@ -269,3 +269,32 @@ func TestHashIdentify(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, invalidHash)
 }
+
+func TestGoCatHccapx(t *testing.T) {
+	crackedHashes := map[string]*string{}
+
+	hc, err := New(Options{
+		SharedPath: DefaultSharedPath,
+	}, callbackForTests(crackedHashes))
+	defer hc.Free()
+
+	require.NotNil(t, hc)
+	require.NoError(t, err)
+
+	err = hc.RunJobWithOptions(hcargp.HashcatSessionOptions{
+		OpenCLDeviceTypes:            hcargp.GetStringPtr(DeviceType),
+		SessionName:                  hcargp.GetStringPtr("test6"),
+		OptimizedKernelEnabled:       hcargp.GetBoolPtr(true),
+		AttackMode:                   hcargp.GetIntPtr(0),
+		HashType:                     hcargp.GetIntPtr(2500),
+		PotfileDisable:               hcargp.GetBoolPtr(true),
+		EnableDeprecated:             hcargp.GetBoolPtr(true),
+		InputFile:                    "./testdata/hashcat.hccapx",
+		DictionaryMaskDirectoryInput: hcargp.GetStringPtr("./testdata/test_dictionary.txt"),
+	})
+
+	fmt.Printf("crackedHashes: %v\n", crackedHashes)
+
+	require.NoError(t, err)
+	require.Len(t, crackedHashes, 1)
+}
