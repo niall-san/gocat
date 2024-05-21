@@ -142,6 +142,8 @@ func ParseOptions(optionsString string) (*HashcatSessionOptions, error) {
 	v := reflect.ValueOf(options).Elem()
 	t := v.Type()
 
+	flagNames := make([]string, v.NumField())
+
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		tag := t.Field(i).Tag.Get("hashcat")
@@ -152,6 +154,7 @@ func ParseOptions(optionsString string) (*HashcatSessionOptions, error) {
 
 		name := strings.Split(tag, ",")[0]
 		name = strings.TrimPrefix(name, "--")
+		flagNames[i] = name
 
 		switch field.Kind() {
 		case reflect.Ptr:
@@ -172,7 +175,23 @@ func ParseOptions(optionsString string) (*HashcatSessionOptions, error) {
 		return nil, err
 	}
 
+	for i, name := range flagNames {
+		if name != "" && !isFlagPassed(flagSet, name) {
+			v.Field(i).Set(reflect.Zero(v.Field(i).Type()))
+		}
+	}
+
 	return options, nil
+}
+
+func isFlagPassed(flagSet *flag.FlagSet, name string) bool {
+	found := false
+	flagSet.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }
 
 // MarshalArgs returns a list of arguments set by the user to be passed into hashcat's session for execution
