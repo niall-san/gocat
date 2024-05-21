@@ -3,6 +3,7 @@ package gocat
 import (
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"testing"
 	"unsafe"
@@ -297,4 +298,30 @@ func TestGoCatHccapx(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, crackedHashes, 1)
+}
+
+func TestCustomCommandLine(t *testing.T) {
+	options, err := hcargp.ParseOptions("--optimized-kernel-enable=true --custom-charset1=DEADBEEF --attack-mode=0 --hash-type=0 --potfile-disable=true")
+
+	require.NoError(t, err)
+	require.NotNil(t, options)
+
+	PrintOptions(options)
+
+}
+
+// helper function to print out the options
+func PrintOptions(options *hcargp.HashcatSessionOptions) {
+	v := reflect.ValueOf(options).Elem()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		name := v.Type().Field(i).Name
+
+		if field.Kind() == reflect.Ptr && !field.IsNil() {
+			field = field.Elem()
+		}
+
+		fmt.Printf("%s: %v\n", name, field.Interface())
+	}
 }

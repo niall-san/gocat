@@ -1,6 +1,7 @@
 package hcargp
 
 import (
+	"flag"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -129,6 +130,47 @@ func parseTag(t string) (tag, options string) {
 		return t[:idx], t[idx+1:]
 	}
 	return tag, ""
+}
+
+// ParseOptions parses the options string and returns a HashcatSessionOptions struct
+func ParseOptions(optionsString string) (*HashcatSessionOptions, error) {
+	options := &HashcatSessionOptions{}
+	flagSet := flag.NewFlagSet("hashcat", flag.ContinueOnError)
+
+	v := reflect.ValueOf(options).Elem()
+	t := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		tag := t.Field(i).Tag.Get("hashcat")
+
+		if tag == "" || !field.CanSet() {
+			continue
+		}
+
+		name := strings.Split(tag, ",")[0]
+		name = strings.TrimPrefix(name, "--")
+
+		switch field.Kind() {
+		case reflect.Ptr:
+			switch field.Type().Elem().Kind() {
+			case reflect.Int:
+				field.Set(reflect.ValueOf(flagSet.Int(name, 0, "")))
+			case reflect.Bool:
+				field.Set(reflect.ValueOf(flagSet.Bool(name, false, "")))
+			case reflect.String:
+				field.Set(reflect.ValueOf(flagSet.String(name, "", "")))
+			}
+		}
+	}
+
+	args := strings.Fields(optionsString)
+	err := flagSet.Parse(args)
+	if err != nil {
+		return nil, err
+	}
+
+	return options, nil
 }
 
 // MarshalArgs returns a list of arguments set by the user to be passed into hashcat's session for execution
