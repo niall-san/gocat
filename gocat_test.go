@@ -306,7 +306,12 @@ func TestCustomCommandLine(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, options)
 
-	PrintOptions(options)
+	errorOptions, err := hcargp.ParseOptions("--invalid-option --optimized-kernel-enable=true --custom-charset1=DEADBEEF")
+
+	require.Error(t, err)
+	require.Nil(t, errorOptions)
+
+	//PrintOptions(options)
 
 }
 

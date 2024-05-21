@@ -3,6 +3,7 @@ package hcargp
 import (
 	"flag"
 	"fmt"
+	"io"
 	"reflect"
 	"runtime"
 	"strings"
@@ -136,6 +137,7 @@ func parseTag(t string) (tag, options string) {
 func ParseOptions(optionsString string) (*HashcatSessionOptions, error) {
 	options := &HashcatSessionOptions{}
 	flagSet := flag.NewFlagSet("hashcat", flag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
 
 	v := reflect.ValueOf(options).Elem()
 	t := v.Type()
