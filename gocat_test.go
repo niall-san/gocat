@@ -313,6 +313,10 @@ func TestCustomCommandLine(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, errorOptions)
 
+	missingDashOptions, err := hcargp.ParseOptions("thisisatest --optimized-kernel-enable=true --custom-charset1=DEADBEEF")
+	require.Error(t, err)
+	require.Nil(t, missingDashOptions)
+
 }
 
 // helper function to print out the options

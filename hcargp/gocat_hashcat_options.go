@@ -176,19 +176,21 @@ func ParseOptions(optionsString string) (*HashcatSessionOptions, error) {
 	}
 
 	// Validate that all provided arguments are valid
+	// Validate that all provided arguments are valid
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "--") {
-			valid := false
-			argName := strings.Split(arg, "=")[0] // Split the argument into flag name and value
-			for _, name := range flagNames {
-				if "--"+name == argName {
-					valid = true
-					break
-				}
+		if !strings.HasPrefix(arg, "--") {
+			return nil, fmt.Errorf("invalid argument: %s", arg)
+		}
+		valid := false
+		argName := strings.Split(arg, "=")[0] // Split the argument into flag name and value
+		for _, name := range flagNames {
+			if "--"+name == argName {
+				valid = true
+				break
 			}
-			if !valid {
-				return nil, fmt.Errorf("invalid argument: %s", arg)
-			}
+		}
+		if !valid {
+			return nil, fmt.Errorf("invalid argument: %s", arg)
 		}
 	}
 
