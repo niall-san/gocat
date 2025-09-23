@@ -13,11 +13,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/niall-san/gocat/v6/hcargp"
+	"github.com/niall-san/gocat/v6/types"
 )
 
 var (
@@ -186,8 +188,11 @@ func (hc *Hashcat) RunJobWithOptions(opts hcargp.HashcatSessionOptions) error {
 }
 
 // IdentifyHash will identify the hash type of a given hash. Returns a list of types if successful.
-func IdentifyHash(hash string, options Options) (types []string, err error) {
+func IdentifyHash(hash string, options Options, hasUsername bool) (hashtypes []types.Hash, err error) {
 	opts := []string{"--identify", "--machine-readable", hash}
+	if hasUsername {
+		opts = append(opts[:len(opts)-1], "--username", opts[len(opts)-1])
+	}
 	// Define a variable to hold the result
 	var result = []string{}
 
@@ -248,7 +253,25 @@ func IdentifyHash(hash string, options Options) (types []string, err error) {
 		return nil, getErrorFromCtx(hc.wrapper.ctx)
 	}
 
-	return result, nil
+	// Cross-reference the hash IDs with the SupportedHashes
+	supportedHashes := types.SupportedHashes()
+	hashMap := make(map[int]types.Hash)
+	for _, hash := range supportedHashes {
+		hashMap[hash.Type] = hash
+	}
+
+	var hashes []types.Hash
+	for _, hashIDStr := range result {
+		hashID, err := strconv.Atoi(hashIDStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid hash ID: %s", hashIDStr)
+		}
+		if hash, ok := hashMap[hashID]; ok {
+			hashes = append(hashes, hash)
+		}
+	}
+
+	return hashes, nil
 }
 
 // StopAtCheckpoint instructs the running hashcat session to stop at the next available checkpoint

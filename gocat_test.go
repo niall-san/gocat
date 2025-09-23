@@ -262,13 +262,21 @@ func TestHashIdentify(t *testing.T) {
 		SharedPath: DefaultSharedPath,
 	}
 
-	types, err := IdentifyHash("5d41402abc4b2a76b9719d911017c592", opts)
+	types, err := IdentifyHash("5d41402abc4b2a76b9719d911017c592", opts, false)
 	require.Len(t, types, 11)
 	require.NoError(t, err)
 
-	invalidHash, err := IdentifyHash("5d4'[##'[]]'1017c592", opts)
+	for _, v := range types {
+		fmt.Printf("Type: %d, Name: %s, Category: %s\n", v.Type, v.Name, v.Category)
+	}
+
+	invalidHash, err := IdentifyHash("5d4'[##'[]]'1017c592", opts, false)
 	require.Error(t, err)
 	require.Nil(t, invalidHash)
+
+	usernameHash, err := IdentifyHash("bob:5d41402abc4b2a76b9719d911017c592", opts, true)
+	require.Len(t, usernameHash, 11)
+	require.NoError(t, err)
 }
 
 func TestGoCatHccapx(t *testing.T) {
