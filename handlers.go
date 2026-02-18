@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -86,11 +87,39 @@ func (s LogLevel) String() string {
 
 // logMessageCbFromEvent is called whenever hashcat sends a INFO/WARN/ERROR message
 func logMessageCbFromEvent(ctx *C.hashcat_ctx_t, lvl LogLevel) LogPayload {
+	// In hashcat 7.x+, ctx or ctx.event_ctx may be null for log events
+	// In such cases, the message should be retrieved from the buf parameter
+	// in the callback function instead
+	if ctx == nil {
+		return LogPayload{
+			Level:   lvl,
+			Message: "",
+		}
+	}
+
 	ectx := ctx.event_ctx
+	if ectx == nil {
+		return LogPayload{
+			Level:   lvl,
+			Message: "",
+		}
+	}
 
 	return LogPayload{
 		Level:   lvl,
 		Message: C.GoStringN(&ectx.msg_buf[0], C.int(ectx.msg_len)),
+	}
+}
+
+// logMessageFromBuffer creates a log message from a buffer (used in hashcat 7.x+ when ctx is null)
+func logMessageFromBuffer(buf unsafe.Pointer, lvl LogLevel) LogPayload {
+	var msg string
+	if buf != nil {
+		msg = C.GoString((*C.char)(buf))
+	}
+	return LogPayload{
+		Level:   lvl,
+		Message: msg,
 	}
 }
 

@@ -4,7 +4,7 @@ package gocat
 #cgo CFLAGS: -I/usr/local/include/hashcat -std=c99 -Wall -O0 -g
 #cgo linux CFLAGS: -D_GNU_SOURCE
 #cgo linux LDFLAGS: -L/usr/local/lib -lhashcat
-#cgo darwin LDFLAGS: -L/usr/local/lib -lhashcat.6.2.6
+#cgo darwin LDFLAGS: -L/usr/local/lib -lhashcat.7.1.2
 
 #include "wrapper.h"
 */
@@ -31,6 +31,10 @@ var (
 	// ErrUnableToStop is raised whenever we were unable to stop a hashcat session. At this time, hashcat's hashcat_session_quit
 	// always returns success so you'll most likely never see this.
 	ErrUnableToStop = errors.New("gocat: unable to stop task")
+
+	// Global map to associate ctx pointers with Hashcat instances
+	ctxMap      = make(map[uintptr]*Hashcat)
+	ctxMapMutex sync.RWMutex
 )
 
 const (
@@ -125,6 +129,11 @@ func New(opts Options, cb EventCallback) (*Hashcat, error) {
 		return nil, getErrorFromCtx(hc.wrapper.ctx)
 	}
 
+	// Register the context pointer in the global map
+	ctxMapMutex.Lock()
+	ctxMap[uintptr(unsafe.Pointer(&hc.wrapper.ctx))] = hc
+	ctxMapMutex.Unlock()
+
 	return hc, nil
 }
 
@@ -189,6 +198,10 @@ func (hc *Hashcat) RunJobWithOptions(opts hcargp.HashcatSessionOptions) error {
 
 // IdentifyHash will identify the hash type of a given hash. Returns a list of types if successful.
 func IdentifyHash(hash string, options Options, hasUsername bool) (hashtypes []types.Hash, err error) {
+	if err := options.validate(); err != nil {
+		return nil, err
+	}
+
 	opts := []string{"--identify", "--machine-readable", hash}
 	if hasUsername {
 		opts = append(opts[:len(opts)-1], "--username", opts[len(opts)-1])
@@ -206,9 +219,13 @@ func IdentifyHash(hash string, options Options, hasUsername bool) (hashtypes []t
 	}
 
 	hc := &Hashcat{
-		opts: options,
-		cb:   cb,
+		executablePath: C.CString(options.ExecutablePath),
+		sharedPath:     C.CString(options.SharedPath),
+		opts:           options,
+		cb:             cb,
 	}
+	defer C.free(unsafe.Pointer(hc.executablePath))
+	defer C.free(unsafe.Pointer(hc.sharedPath))
 
 	hc.wrapper = C.gocat_ctx_t{
 		ctx:       C.hashcat_ctx_t{},
@@ -218,6 +235,16 @@ func IdentifyHash(hash string, options Options, hasUsername bool) (hashtypes []t
 	if retval := C.hashcat_init(&hc.wrapper.ctx, (*[0]byte)(unsafe.Pointer(C.event))); retval != 0 {
 		return nil, getErrorFromCtx(hc.wrapper.ctx)
 	}
+
+	// Register the context pointer in the global map
+	ctxMapMutex.Lock()
+	ctxMap[uintptr(unsafe.Pointer(&hc.wrapper.ctx))] = hc
+	ctxMapMutex.Unlock()
+	defer func() {
+		ctxMapMutex.Lock()
+		delete(ctxMap, uintptr(unsafe.Pointer(&hc.wrapper.ctx)))
+		ctxMapMutex.Unlock()
+	}()
 
 	hc.l.Lock()
 	defer hc.l.Unlock()
@@ -294,24 +321,47 @@ func getErrorFromCtx(ctx C.hashcat_ctx_t) error {
 
 //export callback
 func callback(id uint32, hcCtx *C.hashcat_ctx_t, wrapper unsafe.Pointer, buf unsafe.Pointer, len C.size_t) {
-	ctx := (*Hashcat)(wrapper)
+	// Look up the Hashcat instance from the global map using hcCtx
+	ctxMapMutex.RLock()
+	ctx, ok := ctxMap[uintptr(unsafe.Pointer(hcCtx))]
+	ctxMapMutex.RUnlock()
+
+	if !ok {
+		// Context not found, ignore this event
+		return
+	}
 
 	var payload interface{}
 	var err error
 
 	switch id {
 	case C.EVENT_LOG_ERROR:
-		payload = logMessageCbFromEvent(hcCtx, InfoMessage)
+		// In hashcat 7.x+, log messages are usually passed via buf
+		// but fall back to event_ctx if buf is empty
+		payload = logMessageFromBuffer(buf, ErrorMessage)
+		if payload.(LogPayload).Message == "" && hcCtx != nil && hcCtx.event_ctx != nil {
+			payload = logMessageCbFromEvent(hcCtx, ErrorMessage)
+		}
 	case C.EVENT_LOG_INFO:
-		payload = logMessageCbFromEvent(hcCtx, InfoMessage)
+		// In hashcat 7.x+, log messages are usually passed via buf
+		// but for --identify mode, check event_ctx if buf is empty
+		payload = logMessageFromBuffer(buf, InfoMessage)
+		if payload.(LogPayload).Message == "" && hcCtx != nil && hcCtx.event_ctx != nil {
+			payload = logMessageCbFromEvent(hcCtx, InfoMessage)
+		}
 	case C.EVENT_LOG_WARNING:
-		payload = logMessageCbFromEvent(hcCtx, WarnMessage)
+		// In hashcat 7.x+, log messages are usually passed via buf
+		// but fall back to event_ctx if buf is empty
+		payload = logMessageFromBuffer(buf, WarnMessage)
+		if payload.(LogPayload).Message == "" && hcCtx != nil && hcCtx.event_ctx != nil {
+			payload = logMessageCbFromEvent(hcCtx, WarnMessage)
+		}
 	case C.EVENT_BITMAP_INIT_PRE:
 		payload = logHashcatAction(id, "Generating bitmap tables")
 	case C.EVENT_BITMAP_INIT_POST:
 		payload = logHashcatAction(id, "Generated bitmap tables")
 	case C.EVENT_CALCULATED_WORDS_BASE:
-		if hcCtx.user_options.keyspace {
+		if hcCtx != nil && hcCtx.user_options.keyspace {
 			payload = logHashcatAction(id, fmt.Sprintf("Calculated Words Base: %d", hcCtx.status_ctx.words_base))
 		}
 	case C.EVENT_HASHLIST_SORT_SALT_PRE:
@@ -352,17 +402,20 @@ func callback(id uint32, hcCtx *C.hashcat_ctx_t, wrapper unsafe.Pointer, buf uns
 	case C.EVENT_SET_KERNEL_POWER_FINAL:
 		payload = logHashcatAction(id, "Approaching final keyspace, workload adjusted")
 	case C.EVENT_POTFILE_NUM_CRACKED:
-		ctxHashes := hcCtx.hashes
-		if ctxHashes.digests_done > 0 {
-			payload = logHashcatAction(id, fmt.Sprintf("Removed %d hash(s) found in potfile", ctxHashes.digests_done))
+		if hcCtx != nil {
+			ctxHashes := hcCtx.hashes
+			if ctxHashes.digests_done > 0 {
+				payload = logHashcatAction(id, fmt.Sprintf("Removed %d hash(s) found in potfile", ctxHashes.digests_done))
+			}
 		}
 	case C.EVENT_CRACKER_HASH_CRACKED, C.EVENT_POTFILE_HASH_SHOW:
 		// Grab the separator for this session out of user options
-		userOpts := hcCtx.user_options
-		sepr := C.GoString(userOpts.separator)
-		// XXX(cschmitt): What changed here that this is no longer set?
-		if sepr == "" {
-			sepr = ":"
+		sepr := ":"
+		if hcCtx != nil {
+			userOpts := hcCtx.user_options
+			if userOpts.separator != nil {
+				sepr = C.GoString(userOpts.separator)
+			}
 		}
 
 		msg := C.GoString((*C.char)(buf))
@@ -381,11 +434,19 @@ func callback(id uint32, hcCtx *C.hashcat_ctx_t, wrapper unsafe.Pointer, buf uns
 	// EVENT_CRACKER_STARTING
 	// EVENT_OUTERLOOP_MAINSCREEN
 
-	ctx.cb(unsafe.Pointer(hcCtx), payload)
+	// Only call callback if we have a payload to send and a valid callback
+	if payload != nil && ctx != nil && ctx.cb != nil {
+		ctx.cb(unsafe.Pointer(hcCtx), payload)
+	}
 }
 
 // Free releases all allocations. Call this when you're done with hashcat or exiting the application
 func (hc *Hashcat) Free() {
+	// Remove from global map
+	ctxMapMutex.Lock()
+	delete(ctxMap, uintptr(unsafe.Pointer(&hc.wrapper.ctx)))
+	ctxMapMutex.Unlock()
+
 	C.hashcat_destroy(&hc.wrapper.ctx)
 	C.free(unsafe.Pointer(hc.executablePath))
 	C.free(unsafe.Pointer(hc.sharedPath))
