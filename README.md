@@ -8,7 +8,7 @@ Below is a matrix that details which versions of hashcat we support:
 
 | Branch        | Hashcat Version | Go Import                     |
 | ------------- | --------------- | ----------------------------- |
-| `master `     | `v7.1.2`        | `github.com/niall-san/gocat/v6` |
+| `master `     | `v7.1.2`        | `github.com/niall-san/gocat/v7` |
 | `master `     | `v6.1.1`        | `github.com/mandiant/gocat/v6` |
 | `v5`          | `v5.X`          | `github.com/fireeye/gocat`    |
 

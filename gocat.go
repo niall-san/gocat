@@ -18,8 +18,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/niall-san/gocat/v6/hcargp"
-	"github.com/niall-san/gocat/v6/types"
+	"github.com/niall-san/gocat/v7/hcargp"
+	"github.com/niall-san/gocat/v7/types"
 )
 
 var (
