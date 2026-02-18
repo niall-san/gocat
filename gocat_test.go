@@ -263,7 +263,7 @@ func TestHashIdentify(t *testing.T) {
 	}
 
 	types, err := IdentifyHash("5d41402abc4b2a76b9719d911017c592", opts, false)
-	require.Len(t, types, 11)
+	require.Len(t, types, 12)
 	require.NoError(t, err)
 
 	for _, v := range types {
@@ -275,7 +275,7 @@ func TestHashIdentify(t *testing.T) {
 	require.Nil(t, invalidHash)
 
 	usernameHash, err := IdentifyHash("bob:5d41402abc4b2a76b9719d911017c592", opts, true)
-	require.Len(t, usernameHash, 11)
+	require.Len(t, usernameHash, 12)
 	require.NoError(t, err)
 }
 

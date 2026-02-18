@@ -1,6 +1,6 @@
 # gocat
 
-Updated to work with Hashcat v6.2.6.
+Updated to work with Hashcat v7.1.2.
 
 gocat is a cgo library for interacting with libhashcat. gocat enables you to create purpose-built password cracking tools that leverage the capabilities of [hashcat](https://hashcat.net/hashcat/).
 
@@ -8,24 +8,24 @@ Below is a matrix that details which versions of hashcat we support:
 
 | Branch        | Hashcat Version | Go Import                     |
 | ------------- | --------------- | ----------------------------- |
-| `master `     | `v6.2.6`        | `github.com/niall-san/gocat/v6` |
+| `master `     | `v7.1.2`        | `github.com/niall-san/gocat/v6` |
 | `master `     | `v6.1.1`        | `github.com/mandiant/gocat/v6` |
 | `v5`          | `v5.X`          | `github.com/fireeye/gocat`    |
 
 
 ## Installation (Please Read)
 
-gocat requires hashcat [v6.X](https://github.com/hashcat/hashcat/releases) or higher to be compiled as a shared library. This can be accomplished by modifying hashcat's `src/Makefile` and setting `SHARED` to `1` . At this time, we also recommend disabling the brain functionality by setting `ENABLE_BRAIN` to `0`
+gocat requires hashcat [v7.1.2](https://github.com/hashcat/hashcat/releases) or higher to be compiled as a shared library. This can be accomplished by modifying hashcat's `src/Makefile` and setting `SHARED` to `1` . At this time, we also recommend disabling the brain functionality by setting `ENABLE_BRAIN` to `0`
 
     git clone https://github.com/hashcat/hashcat.git
-    git checkout v6.2.6
+    git checkout v7.1.2
     make install SHARED=1 ENABLE_BRAIN=0
     cp deps/LZMA-SDK/C/LzmaDec.h /usr/local/include/hashcat/
     cp deps/LZMA-SDK/C/7zTypes.h /usr/local/include/hashcat/
     cp deps/LZMA-SDK/C/Lzma2Dec.h /usr/local/include/hashcat/
     cp -r ./OpenCL/inc_types.h /usr/local/include/hashcat/
     cp -r ./deps/zlib/contrib /usr/local/include/hashcat
-    ln -s /usr/local/lib/libhashcat.so.6.2.6 /usr/local/lib/libhashcat.so
+    ln -s /usr/local/lib/libhashcat.so.7.1.2 /usr/local/lib/libhashcat.so
 
 At this time, you will also need to set the following environment variables when compiling code that uses this library:
 

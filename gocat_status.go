@@ -46,12 +46,14 @@ var szStatusStruct = unsafe.Sizeof(C.hashcat_status_t{})
 func (hc *Hashcat) GetStatus() *Status {
 	ptr := C.malloc(C.size_t(szStatusStruct))
 	hcStatus := (*C.hashcat_status_t)(unsafe.Pointer(ptr))
-	defer C.free(unsafe.Pointer(hcStatus))
+	defer func() {
+		C.status_status_destroy(&hc.wrapper.ctx, hcStatus)
+		C.free(unsafe.Pointer(hcStatus))
+	}()
 
 	if retval := C.hashcat_get_status(&hc.wrapper.ctx, hcStatus); retval != 0 {
 		return nil
 	}
-	defer C.status_status_destroy(&hc.wrapper.ctx, hcStatus)
 
 	stats := &Status{
 		Session:               C.GoString(hcStatus.session),
