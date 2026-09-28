@@ -3,87 +3,43 @@ package gocat
 // #include "wrapper.h"
 import "C"
 import (
-	"fmt"
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/niall-san/gocat/v7/types"
+)
+
+// The payload and log types are declared in the cgo-free types package so that
+// consumers can use them without linking libhashcat. These aliases keep the
+// existing gocat API unchanged.
+type (
+	// LogLevel indicates the type of log message from hashcat
+	LogLevel = types.LogLevel
+	// LogPayload defines the structure of an event log message from hashcat and sent to the user via the callback
+	LogPayload = types.LogPayload
+	// TaskInformationPayload includes information about the task that hashcat is getting ready to process
+	TaskInformationPayload = types.TaskInformationPayload
+	// ActionPayload defines the structure of a generic hashcat event and sent to the user via the callback
+	ActionPayload = types.ActionPayload
+	// CrackedPayload defines the structure of a cracked message from hashcat and sent to the user via the callback
+	CrackedPayload = types.CrackedPayload
+	// FinalStatusPayload is returned at the end of the cracking session
+	FinalStatusPayload = types.FinalStatusPayload
+	// ErrCrackedPayload is raised whenever we get a cracked password callback but was unable to parse the message from hashcat
+	ErrCrackedPayload = types.ErrCrackedPayload
 )
 
 const (
 	// InfoMessage is a log message from hashcat with the id of EVENT_LOG_INFO
-	InfoMessage LogLevel = iota
+	InfoMessage = types.InfoMessage
 	// WarnMessage is a log message from hashcat with the id of EVENT_LOG_WARNING
-	WarnMessage
+	WarnMessage = types.WarnMessage
 	// ErrorMessage is a log message from hashcat with the id of EVENT_LOG_ERROR
-	ErrorMessage
+	ErrorMessage = types.ErrorMessage
 	// AdviceMessage is a log message from hashcat with the id of EVENT_LOG_ADVICE
-	AdviceMessage
+	AdviceMessage = types.AdviceMessage
 )
-
-// LogPayload defines the structure of an event log message from hashcat and sent to the user via the callback
-type LogPayload struct {
-	Level   LogLevel
-	Message string
-	Error   error
-}
-
-// TaskInformationPayload includes information about the task that hashcat is getting ready to process. This includes deduplicated hashes, etc.
-type TaskInformationPayload struct {
-	NumHashes       uint32
-	NumHashesUnique uint32
-	NumSalts        uint32
-}
-
-// ActionPayload defines the structure of a generic hashcat event and sent to the user via the callback.
-// An example of this would be the numerous PRE/POST events.
-type ActionPayload struct {
-	HashcatEvent uint32
-	LogPayload
-}
-
-// CrackedPayload defines the structure of a cracked message from hashcat and sent to the user via the callback
-type CrackedPayload struct {
-	IsPotfile bool
-	Hash      string
-	Value     string
-	CrackedAt time.Time
-}
-
-// FinalStatusPayload is returned at the end of the cracking session
-type FinalStatusPayload struct {
-	Status  *Status
-	EndedAt time.Time
-	// AllHashesCracked is set when all hashes either exist in a potfile or are considered "weak"
-	AllHashesCracked bool
-}
-
-// ErrCrackedPayload is raised whenever we get a cracked password callback but was unable to parse the message from hashcat
-type ErrCrackedPayload struct {
-	Separator  string
-	CrackedMsg string
-}
-
-func (e ErrCrackedPayload) Error() string {
-	return fmt.Sprintf("Could not locate separator `%s` in msg", e.Separator)
-}
-
-// LogLevel indicates the type of log message from hashcat
-type LogLevel int8
-
-func (s LogLevel) String() string {
-	switch s {
-	case InfoMessage:
-		return "INFO"
-	case WarnMessage:
-		return "WARN"
-	case ErrorMessage:
-		return "ERROR"
-	case AdviceMessage:
-		return "ADVICE"
-	default:
-		return "UNKNOWN"
-	}
-}
 
 // logMessageCbFromEvent is called whenever hashcat sends a INFO/WARN/ERROR message
 func logMessageCbFromEvent(ctx *C.hashcat_ctx_t, lvl LogLevel) LogPayload {
