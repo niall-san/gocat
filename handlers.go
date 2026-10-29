@@ -7,7 +7,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/niall-san/gocat/v7/types"
+	"github.com/niall-san/gocat/v8/types"
 )
 
 // The payload and log types are declared in the cgo-free types package so that

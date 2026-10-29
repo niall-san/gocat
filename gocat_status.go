@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/niall-san/gocat/v7/types"
+	"github.com/niall-san/gocat/v8/types"
 )
 
 // Status and DeviceStatus are declared in the cgo-free types package so that
@@ -27,7 +27,7 @@ func (hc *Hashcat) GetStatus() *Status {
 	ptr := C.malloc(C.size_t(szStatusStruct))
 	hcStatus := (*C.hashcat_status_t)(unsafe.Pointer(ptr))
 	defer func() {
-		C.status_status_destroy(&hc.wrapper.ctx, hcStatus)
+		C.status_destroy(&hc.wrapper.ctx, hcStatus)
 		C.free(unsafe.Pointer(hcStatus))
 	}()
 

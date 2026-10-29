@@ -3,7 +3,7 @@ package gocat
 import (
 	"testing"
 
-	"github.com/niall-san/gocat/v7/types"
+	"github.com/niall-san/gocat/v8/types"
 )
 
 // TestTypesAreAliases proves the root-package names are aliases of the types

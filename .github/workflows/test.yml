@@ -3,12 +3,23 @@ name: Test master
 on:
   push:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      hashcat_refs:
+        description: 'JSON list of hashcat tags or branches to test against, e.g. ["v8.0.0", "master"]'
+        required: true
+        default: '["v8.0.0"]'
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        hashcat_ref: ${{ fromJSON(github.event.inputs.hashcat_refs || '["v8.0.0"]') }}
+    name: hashcat ${{ matrix.hashcat_ref }}
     steps:
       - name: Install build dependencies
-        run: sudo apt-get update -y && sudo apt-get install -y libminizip-dev ocl-icd-libopencl1 opencl-headers pocl-opencl-icd
+        run: sudo apt-get update -y && sudo apt-get install -y ocl-icd-libopencl1 opencl-headers pocl-opencl-icd
       - uses: actions/checkout@v7
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -18,25 +29,21 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: hashcat/hashcat
-          ref: v7.1.2
+          ref: ${{ matrix.hashcat_ref }}
           path: hashcat
       - name: Install hashcat
         working-directory: ./hashcat
-        run: sudo make install SHARED=1 ENABLE_BRAIN=0
-      - name: Install additional dependencies
-        working-directory: ./hashcat
+        # libhashcat's installed headers omit some that gocat's cgo wrapper includes
         run: |
-          sudo cp deps/LZMA-SDK/C/LzmaDec.h /usr/local/include/hashcat/
-          sudo cp deps/LZMA-SDK/C/7zTypes.h /usr/local/include/hashcat/
-          sudo cp deps/LZMA-SDK/C/Lzma2Dec.h /usr/local/include/hashcat/
-          sudo cp -r ./OpenCL/inc_types.h /usr/local/include/hashcat/
-          sudo cp -r ./deps/zlib/contrib /usr/local/include/hashcat
-          sudo ln -s /usr/local/lib/libhashcat.so.7.1.2 /usr/local/lib/libhashcat.so
+          sudo make -j"$(nproc)" install SHARED=1 ENABLE_BRAIN=0
+          sudo cp include/*.h OpenCL/inc_types.h /usr/local/include/hashcat/
       - name: Build gocat test binary
-        run: go test -c
+        run: |
+          go vet ./...
+          go test -c
       - name: Copy gocat.test and test files to the test directory
         run: |
           sudo cp gocat.test /usr/local/share/hashcat
           sudo cp -r testdata /usr/local/share/hashcat
       - name: Run gocat tests
-        run: sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib /usr/local/share/hashcat/gocat.test
+        run: sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib /usr/local/share/hashcat/gocat.test -test.v

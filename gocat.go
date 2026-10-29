@@ -4,7 +4,7 @@ package gocat
 #cgo CFLAGS: -I/usr/local/include/hashcat -std=c99 -Wall -O0 -g
 #cgo linux CFLAGS: -D_GNU_SOURCE
 #cgo linux LDFLAGS: -L/usr/local/lib -lhashcat
-#cgo darwin LDFLAGS: -L/usr/local/lib -lhashcat.7.1.2
+#cgo darwin LDFLAGS: -L/usr/local/lib -lhashcat
 
 #include "wrapper.h"
 */
@@ -18,8 +18,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/niall-san/gocat/v7/hcargp"
-	"github.com/niall-san/gocat/v7/types"
+	"github.com/niall-san/gocat/v8/hcargp"
+	"github.com/niall-san/gocat/v8/types"
 )
 
 var (
@@ -391,9 +391,6 @@ func callback(id uint32, hcCtx *C.hashcat_ctx_t, wrapper unsafe.Pointer, buf uns
 		payload = logHashcatAction(id, "Compared hashes with potfile entries")
 	case C.EVENT_POTFILE_ALL_CRACKED:
 		payload = logHashcatAction(id, "All hashes exist in potfile")
-		if ctx.isEventPatched {
-			C.potfile_handle_show(&ctx.wrapper.ctx)
-		}
 		payload = FinalStatusPayload{
 			Status:           nil,
 			EndedAt:          time.Now().UTC(),

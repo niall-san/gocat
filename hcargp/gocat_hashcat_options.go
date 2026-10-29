@@ -85,7 +85,6 @@ type HashcatSessionOptions struct {
 	VeraCryptPIM           *int    `hashcat:"--veracrypt-pim,omitempty"`
 	VeraCryptPIMStart      *int    `hashcat:"--veracrypt-pim-start,omitempty"`
 	VeraCryptPIMStop       *int    `hashcat:"--veracrypt-pim-stop,omitempty"`
-	SegmentSize            *int    `hashcat:"--segment-size,omitempty"`
 	BitmapMin              *int    `hashcat:"--bitmap-min,omitempty"`
 	BitmapMax              *int    `hashcat:"--bitmap-max,omitempty"`
 	CPUAffinity            *string `hashcat:"--cpu-affinity,omitempty"`
