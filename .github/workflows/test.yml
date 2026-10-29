@@ -30,9 +30,9 @@ jobs:
         with:
           repository: hashcat/hashcat
           ref: ${{ matrix.hashcat_ref }}
-          path: hashcat
+          path: _hashcat
       - name: Install hashcat
-        working-directory: ./hashcat
+        working-directory: ./_hashcat
         # libhashcat's installed headers omit some that gocat's cgo wrapper includes
         run: |
           sudo make -j"$(nproc)" install SHARED=1 ENABLE_BRAIN=0
