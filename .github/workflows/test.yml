@@ -9,13 +9,13 @@ jobs:
     steps:
       - name: Install build dependencies
         run: sudo apt-get update -y && sudo apt-get install -y libminizip-dev ocl-icd-libopencl1 opencl-headers pocl-opencl-icd
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v7
         with:
           go-version: 'stable'
       - name: Checkout hashcat
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
         with:
           repository: hashcat/hashcat
           ref: v7.1.2
