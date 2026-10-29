@@ -1,36 +1,39 @@
 # gocat
 
-Updated to work with Hashcat v7.1.2.
+Updated to work with Hashcat v8.0.0.
 
 gocat is a cgo library for interacting with libhashcat. gocat enables you to create purpose-built password cracking tools that leverage the capabilities of [hashcat](https://hashcat.net/hashcat/).
 
 Below is a matrix that details which versions of hashcat we support:
 
-| Branch        | Hashcat Version | Go Import                     |
-| ------------- | --------------- | ----------------------------- |
-| `master `     | `v7.1.2`        | `github.com/niall-san/gocat/v7` |
-| `master `     | `v6.1.1`        | `github.com/mandiant/gocat/v6` |
-| `v5`          | `v5.X`          | `github.com/fireeye/gocat`    |
+| Branch        | Hashcat Version | Go Import                       |
+| ------------- | --------------- | ------------------------------- |
+| `master`      | `v8.0.0`        | `github.com/niall-san/gocat/v8` |
+| `v7.1.2-2`    | `v7.1.2`        | `github.com/niall-san/gocat/v7` |
+| `master `     | `v6.1.1`        | `github.com/mandiant/gocat/v6`  |
+| `v5`          | `v5.X`          | `github.com/fireeye/gocat`      |
 
 
 ## Installation (Please Read)
 
-gocat requires hashcat [v7.1.2](https://github.com/hashcat/hashcat/releases) or higher to be compiled as a shared library. This can be accomplished by modifying hashcat's `src/Makefile` and setting `SHARED` to `1` . At this time, we also recommend disabling the brain functionality by setting `ENABLE_BRAIN` to `0`
+gocat requires hashcat [v8.0.0](https://github.com/hashcat/hashcat/releases) or higher to be compiled as a shared library (`SHARED=1`, the default on Linux since v8.0.0). At this time, we also recommend disabling the brain functionality by setting `ENABLE_BRAIN` to `0`: `hashcat_status_t` changes layout with it, so gocat and libhashcat must agree.
 
     git clone https://github.com/hashcat/hashcat.git
-    git checkout v7.1.2
+    git checkout v8.0.0
     make install SHARED=1 ENABLE_BRAIN=0
-    cp deps/LZMA-SDK/C/LzmaDec.h /usr/local/include/hashcat/
-    cp deps/LZMA-SDK/C/7zTypes.h /usr/local/include/hashcat/
-    cp deps/LZMA-SDK/C/Lzma2Dec.h /usr/local/include/hashcat/
-    cp -r ./OpenCL/inc_types.h /usr/local/include/hashcat/
-    cp -r ./deps/zlib/contrib /usr/local/include/hashcat
-    ln -s /usr/local/lib/libhashcat.so.7.1.2 /usr/local/lib/libhashcat.so
 
-At this time, you will also need to set the following environment variables when compiling code that uses this library:
+libhashcat's installed headers do not include everything gocat's cgo wrapper needs, so compile against the hashcat source tree:
 
     $ export HASHCAT_SRC_PATH=<Place path here>
-    $ export CGO_CFLAGS="-I$HASHCAT_SRC_PATH/OpenCL -I$HASHCAT_SRC_PATH/deps/LZMA-SDK/C -I$HASHCAT_SRC_PATH/deps/zlib -I$HASHCAT_SRC_PATH/deps/zlib/contrib -I$HASHCAT_SRC_PATH/deps/OpenCL-Headers $CGO_CFLAGS"
+    $ export CGO_CFLAGS="-I$HASHCAT_SRC_PATH/include -I$HASHCAT_SRC_PATH/OpenCL -I$HASHCAT_SRC_PATH/deps/OpenCL-Headers -I$HASHCAT_SRC_PATH/deps/LZMA-SDK/C -I$HASHCAT_SRC_PATH/deps/zlib/contrib $CGO_CFLAGS"
+    $ export CGO_LDFLAGS="-L/usr/local/lib -lhashcat $CGO_LDFLAGS"
+
+## Hash types
+
+`types/hash_types.go` is generated from hashcat itself. `SupportedHashes()` lists every hash-mode the binary reports, and `LegacyHashModes()` maps retired mode numbers (still accepted by `-m`) to their replacements. To regenerate after a hashcat upgrade:
+
+    $ cd types
+    $ HASHCAT_BIN=/usr/local/bin/hashcat HASHCAT_SRC_PATH=<Place path here> go generate
 
 ## Testing
 

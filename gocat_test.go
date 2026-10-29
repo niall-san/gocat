@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/niall-san/gocat/v7/hcargp"
+	"github.com/niall-san/gocat/v8/hcargp"
 
 	"github.com/stretchr/testify/require"
 )
@@ -263,19 +263,23 @@ func TestHashIdentify(t *testing.T) {
 	}
 
 	types, err := IdentifyHash("5d41402abc4b2a76b9719d911017c592", opts, false)
-	require.Len(t, types, 12)
 	require.NoError(t, err)
 
+	modes := map[int]bool{}
 	for _, v := range types {
 		fmt.Printf("Type: %d, Name: %s, Category: %s\n", v.Type, v.Name, v.Category)
+		modes[v.Type] = true
 	}
+	// the number of candidates grows with each hashcat release, so only check well-known ones
+	require.True(t, modes[0], "MD5 not identified")
+	require.True(t, modes[1000], "NTLM not identified")
 
 	invalidHash, err := IdentifyHash("5d4'[##'[]]'1017c592", opts, false)
 	require.Error(t, err)
 	require.Nil(t, invalidHash)
 
 	usernameHash, err := IdentifyHash("bob:5d41402abc4b2a76b9719d911017c592", opts, true)
-	require.Len(t, usernameHash, 12)
+	require.Len(t, usernameHash, len(types))
 	require.NoError(t, err)
 }
 

@@ -1,4 +1,4 @@
-module github.com/niall-san/gocat/v7
+module github.com/niall-san/gocat/v8
 
 go 1.26
 

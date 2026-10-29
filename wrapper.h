@@ -6,6 +6,7 @@
 #include "potfile.h"
 #include "status.h"
 #include "thread.h"
+#include "memory.h"
 
 typedef struct
 {
@@ -16,3 +17,4 @@ typedef struct
 void callback(u32 id, hashcat_ctx_t *hashcat_ctx, void *wrapper, void *buf, size_t len);
 void event(const u32 id, hashcat_ctx_t *hashcat_ctx, const void *buf, const size_t len);
 void freeargv(int argc, char **argv);
+void status_destroy(hashcat_ctx_t *hashcat_ctx, hashcat_status_t *hashcat_status);
