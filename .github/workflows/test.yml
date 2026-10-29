@@ -33,14 +33,12 @@ jobs:
           path: hashcat
       - name: Install hashcat
         working-directory: ./hashcat
-        run: sudo make -j"$(nproc)" install SHARED=1 ENABLE_BRAIN=0
-      - name: Build gocat test binary
-        # libhashcat's installed headers omit some that gocat's cgo wrapper includes, so build
-        # against the hashcat source tree instead
+        # libhashcat's installed headers omit some that gocat's cgo wrapper includes
         run: |
-          HC="$GITHUB_WORKSPACE/hashcat"
-          export CGO_CFLAGS="-I$HC/include -I$HC/OpenCL -I$HC/deps/OpenCL-Headers -I$HC/deps/LZMA-SDK/C -I$HC/deps/zlib/contrib"
-          export CGO_LDFLAGS="-L/usr/local/lib -lhashcat"
+          sudo make -j"$(nproc)" install SHARED=1 ENABLE_BRAIN=0
+          sudo cp include/*.h OpenCL/inc_types.h /usr/local/include/hashcat/
+      - name: Build gocat test binary
+        run: |
           go vet ./...
           go test -c
       - name: Copy gocat.test and test files to the test directory

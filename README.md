@@ -21,12 +21,9 @@ gocat requires hashcat [v8.0.0](https://github.com/hashcat/hashcat/releases) or 
     git clone https://github.com/hashcat/hashcat.git
     git checkout v8.0.0
     make install SHARED=1 ENABLE_BRAIN=0
+    cp include/*.h OpenCL/inc_types.h /usr/local/include/hashcat/
 
-libhashcat's installed headers do not include everything gocat's cgo wrapper needs, so compile against the hashcat source tree:
-
-    $ export HASHCAT_SRC_PATH=<Place path here>
-    $ export CGO_CFLAGS="-I$HASHCAT_SRC_PATH/include -I$HASHCAT_SRC_PATH/OpenCL -I$HASHCAT_SRC_PATH/deps/OpenCL-Headers -I$HASHCAT_SRC_PATH/deps/LZMA-SDK/C -I$HASHCAT_SRC_PATH/deps/zlib/contrib $CGO_CFLAGS"
-    $ export CGO_LDFLAGS="-L/usr/local/lib -lhashcat $CGO_LDFLAGS"
+The last step is needed because libhashcat's installed headers do not include everything gocat's cgo wrapper needs. gocat looks for headers in `/usr/local/include/hashcat` and the library in `/usr/local/lib`.
 
 ## Hash types
 
