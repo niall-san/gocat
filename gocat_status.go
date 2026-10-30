@@ -63,10 +63,19 @@ func (hc *Hashcat) GetStatus() *Status {
 		stats.RestorePoint = fmt.Sprintf("%d/%d (%.02f%%)", hcStatus.restore_point,
 			hcStatus.restore_total,
 			hcStatus.restore_percent)
+		stats.ProgressCur = uint64(hcStatus.progress_cur_relative_skip)
+		stats.ProgressEnd = uint64(hcStatus.progress_end_relative_skip)
+		stats.RestoreCur = uint64(hcStatus.restore_point)
+		stats.RestoreTotal = uint64(hcStatus.restore_total)
 	case C.PROGRESS_MODE_KEYSPACE_UNKNOWN:
 		stats.Progress = fmt.Sprintf("%d", hcStatus.progress_cur_relative_skip)
 		stats.Rejected = fmt.Sprintf("%d", hcStatus.progress_rejected)
 		stats.RestorePoint = fmt.Sprintf("%d", hcStatus.restore_point)
+		// ProgressEnd left 0: unknown keyspace has no denominator, which signals
+		// consumers to fall back off the ratio.
+		stats.ProgressCur = uint64(hcStatus.progress_cur_relative_skip)
+		stats.RestoreCur = uint64(hcStatus.restore_point)
+		stats.RestoreTotal = uint64(hcStatus.restore_total)
 	}
 
 	switch stats.GuessMode {
