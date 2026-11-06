@@ -3,6 +3,8 @@ package gocat
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -345,4 +347,40 @@ func PrintOptions(options *hcargp.HashcatSessionOptions) {
 
 		fmt.Printf("%s: %v\n", name, field.Interface())
 	}
+}
+
+// hashcat 8 refuses a large hash file that does not parse for the hash-mode,
+// then prints advice lines. The error must be hashcat's, not the empty advice
+// line that hashcat_get_log holds by then.
+func TestRunJobReturnsHashcatErrorNotTrailingAdvice(t *testing.T) {
+	var lines strings.Builder
+	for i := range 10050 {
+		fmt.Fprintf(&lines, "user%d:%032x\n", i, i)
+	}
+	hashFile := filepath.Join(t.TempDir(), "hashes.txt")
+	require.NoError(t, os.WriteFile(hashFile, []byte(lines.String()), 0o600))
+
+	hc, err := New(Options{SharedPath: DefaultSharedPath}, callbackForTests(map[string]*string{}))
+	require.NoError(t, err)
+	defer hc.Free()
+
+	err = hc.RunJob("-a", "0", "-m", "1000", "-D", DeviceType, "--session", "test-hashfile-check", "--potfile-disable", hashFile, "./testdata/test_dictionary.txt")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "This does not look like a hash file for -m 1000")
+}
+
+// A failed call reports every error hashcat logged, in order, once each.
+func TestSessionErrorJoinsTheCallsErrors(t *testing.T) {
+	hc := &Hashcat{}
+	hc.recordError("* Device #1: Outdated PoCL OpenCL runtime detected!")
+	hc.recordError("")
+	hc.recordError("No devices found/left.")
+	hc.recordError("No devices found/left.")
+	require.EqualError(t, hc.sessionError(), "gocat: Device #1: Outdated PoCL OpenCL runtime detected!; No devices found/left.")
+
+	hc.resetError()
+	for i := range maxRecordedErrors + 2 {
+		hc.recordError(fmt.Sprintf("error %d", i))
+	}
+	require.Len(t, hc.errs, maxRecordedErrors)
 }
