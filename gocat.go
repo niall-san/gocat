@@ -13,7 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -102,6 +104,12 @@ type Hashcat struct {
 	isEventPatched bool
 	l              sync.Mutex
 
+	// errs are the errors hashcat logged during the current call.
+	// hashcat_get_log only keeps the newest log line of any level, and the
+	// advice lines hashcat prints after an error overwrite it.
+	errMu sync.Mutex
+	errs  []string
+
 	// these must be free'd
 	executablePath *C.char
 	sharedPath     *C.char
@@ -146,6 +154,7 @@ func (hc *Hashcat) EventCallbackIsReentrant() bool {
 func (hc *Hashcat) RunJob(args ...string) (err error) {
 	hc.l.Lock()
 	defer hc.l.Unlock()
+	hc.resetError()
 
 	// initialize the default options in hashcat_ctx->user_options
 	if retval := C.user_options_init(&hc.wrapper.ctx); retval != 0 {
@@ -156,15 +165,15 @@ func (hc *Hashcat) RunJob(args ...string) (err error) {
 	defer C.freeargv(argc, argv)
 
 	if retval := C.user_options_getopt(&hc.wrapper.ctx, argc, argv); retval != 0 {
-		return getErrorFromCtx(hc.wrapper.ctx)
+		return hc.sessionError()
 	}
 
 	if retval := C.user_options_sanity(&hc.wrapper.ctx); retval != 0 {
-		return getErrorFromCtx(hc.wrapper.ctx)
+		return hc.sessionError()
 	}
 
 	if retval := C.hashcat_session_init(&hc.wrapper.ctx, hc.executablePath, hc.sharedPath, argc, argv, C.int(CompileTime)); retval != 0 {
-		return getErrorFromCtx(hc.wrapper.ctx)
+		return hc.sessionError()
 	}
 	defer C.hashcat_session_destroy(&hc.wrapper.ctx)
 
@@ -182,7 +191,7 @@ func (hc *Hashcat) RunJob(args ...string) (err error) {
 		sessionAbortedCheckpoint, sessionAbortedRuntime:
 		err = nil
 	default:
-		return getErrorFromCtx(hc.wrapper.ctx)
+		return hc.sessionError()
 	}
 
 	return
@@ -248,6 +257,7 @@ func IdentifyHash(hash string, options Options, hasUsername bool) (hashtypes []t
 
 	hc.l.Lock()
 	defer hc.l.Unlock()
+	hc.resetError()
 
 	// initialize the default options in hashcat_ctx->user_options
 	if retval := C.user_options_init(&hc.wrapper.ctx); retval != 0 {
@@ -258,15 +268,15 @@ func IdentifyHash(hash string, options Options, hasUsername bool) (hashtypes []t
 	defer C.freeargv(argc, argv)
 
 	if retval := C.user_options_getopt(&hc.wrapper.ctx, argc, argv); retval != 0 {
-		return nil, getErrorFromCtx(hc.wrapper.ctx)
+		return nil, hc.sessionError()
 	}
 
 	if retval := C.user_options_sanity(&hc.wrapper.ctx); retval != 0 {
-		return nil, getErrorFromCtx(hc.wrapper.ctx)
+		return nil, hc.sessionError()
 	}
 
 	if retval := C.hashcat_session_init(&hc.wrapper.ctx, hc.executablePath, hc.sharedPath, argc, argv, C.int(CompileTime)); retval != 0 {
-		return nil, getErrorFromCtx(hc.wrapper.ctx)
+		return nil, hc.sessionError()
 	}
 	defer C.hashcat_session_destroy(&hc.wrapper.ctx)
 
@@ -277,7 +287,7 @@ func IdentifyHash(hash string, options Options, hasUsername bool) (hashtypes []t
 	case sessionCracked:
 		err = nil
 	default:
-		return nil, getErrorFromCtx(hc.wrapper.ctx)
+		return nil, hc.sessionError()
 	}
 
 	// Cross-reference the hash IDs with the SupportedHashes
@@ -314,6 +324,41 @@ func (hc *Hashcat) AbortRunningTask() {
 	C.hashcat_session_quit(&hc.wrapper.ctx)
 }
 
+// maxRecordedErrors bounds the errors one call keeps.
+const maxRecordedErrors = 8
+
+// recordError keeps msg as one of the call's error messages.
+func (hc *Hashcat) recordError(msg string) {
+	msg = strings.TrimSpace(strings.TrimPrefix(msg, "* "))
+	if msg == "" {
+		return
+	}
+	hc.errMu.Lock()
+	defer hc.errMu.Unlock()
+	if len(hc.errs) < maxRecordedErrors && !slices.Contains(hc.errs, msg) {
+		hc.errs = append(hc.errs, msg)
+	}
+}
+
+// resetError forgets the previous call's error messages.
+func (hc *Hashcat) resetError() {
+	hc.errMu.Lock()
+	hc.errs = nil
+	hc.errMu.Unlock()
+}
+
+// sessionError is the error for a failed hashcat call: every error message
+// hashcat logged during it, in order, else hashcat's newest log line.
+func (hc *Hashcat) sessionError() error {
+	hc.errMu.Lock()
+	msg := strings.Join(hc.errs, "; ")
+	hc.errMu.Unlock()
+	if msg == "" {
+		return getErrorFromCtx(hc.wrapper.ctx)
+	}
+	return fmt.Errorf("gocat: %s", msg)
+}
+
 func getErrorFromCtx(ctx C.hashcat_ctx_t) error {
 	msg := C.hashcat_get_log(&ctx)
 	return fmt.Errorf("gocat: %s", C.GoString(msg))
@@ -342,6 +387,7 @@ func callback(id uint32, hcCtx *C.hashcat_ctx_t, wrapper unsafe.Pointer, buf uns
 		if payload.(LogPayload).Message == "" && hcCtx != nil && hcCtx.event_ctx != nil {
 			payload = logMessageCbFromEvent(hcCtx, ErrorMessage)
 		}
+		ctx.recordError(payload.(LogPayload).Message)
 	case C.EVENT_LOG_INFO:
 		// In hashcat 7.x+, log messages are usually passed via buf
 		// but for --identify mode, check event_ctx if buf is empty
